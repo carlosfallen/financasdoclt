@@ -1,226 +1,296 @@
-import { Account, Schedule, Benefit, Goal, Installment, Transaction, Budget, User, FinancialInsight } from '../types';
-import { EXPENSE_CATEGORIES } from '../config/categories';
+// src/utils/calculations.ts
 
-export const calculateCurrentTotalBalance = (accounts: Account[] = []): number => {
-  if (!accounts || accounts.length === 0) return 0;
-  return accounts.reduce((total, account) => total + (account.balance || 0), 0);
+import { INSS_RATES, IRRF_RATES, DEPENDENT_DEDUCTION } from './constants';
+import { Account, Schedule, Benefit, Installment, FinancialInsight, AppData } from '../types';
+
+// Estima o saldo após o próximo pagamento
+export const calculatePostPaycheckBalance = (appData: AppData): number => {
+  if (!appData.user) return 0;
+
+  const { user, accounts, benefits, schedules, installments } = appData;
+
+  const currentBalance = calculateCurrentTotalBalance(accounts);
+  const monthlySurplus = calculateMonthlySurplus(user.salary, benefits, schedules, installments);
+
+  return currentBalance + monthlySurplus;
 };
 
-export const calculatePostPaycheckBalance = (data: {
-  user?: User;
-  accounts?: Account[];
-  benefits?: Benefit[];
-  schedules?: Schedule[];
-  installments?: Installment[];
-}): number => {
-  const { user, accounts = [], benefits = [], schedules = [], installments = [] } = data;
-  if (!user || !user.salary) return 0;
+// Gera um "score financeiro" simples
+export const calculateFinancialScore = (appData: AppData): number => {
+  if (!appData.user) return 0;
 
-  const startingBalance = calculateCurrentTotalBalance(accounts);
-  const salaryInflow = user.salary || 0;
-  const benefitsInflow = benefits
-    .filter(b => b.inCash)
-    .reduce((sum, b) => sum + (b.amount || 0), 0);
-  const schedulesOutflow = schedules.reduce((sum, s) => sum + (s.amount || 0), 0);
-  const installmentsOutflow = installments
-    .filter(i => (i.payments || []).length < i.totalInstallments)
-    .reduce((sum, i) => sum + (i.monthlyPayment || 0), 0);
-  
-  return startingBalance + salaryInflow + benefitsInflow - schedulesOutflow - installmentsOutflow;
-};
+  const { accounts, schedules, installments } = appData;
 
-export const calculateFinancialScore = (data: {
-  user?: User;
-  accounts?: Account[];
-  schedules?: Schedule[];
-  goals?: Goal[];
-}): number => {
-  const { user, accounts = [], schedules = [], goals = [] } = data;
-  if (!user || !user.salary) return 0;
+  const totalBalance = calculateCurrentTotalBalance(accounts);
+  const monthlyExpenses = calculateMonthlyExpenses(schedules, installments);
 
-  const totalScheduledExpenses = schedules.reduce((sum, s) => sum + s.amount, 0);
-  const currentTotalBalance = calculateCurrentTotalBalance(accounts);
-  const monthlySurplusRatio = user.salary > 0 ? (user.salary - totalScheduledExpenses) / user.salary : 0;
+  // Exemplo de cálculo básico (0 a 1000)
+  let score = 500;
 
-  let surplusScore = 0;
-  if (monthlySurplusRatio >= 0.3) surplusScore = 1;
-  else if (monthlySurplusRatio >= 0.1) surplusScore = 0.7;
-  else if (monthlySurplusRatio >= 0) surplusScore = 0.4;
-
-  const emergencyFundRatio = totalScheduledExpenses > 0 ? currentTotalBalance / totalScheduledExpenses : 10;
-  let emergencyScore = 0;
-  if (emergencyFundRatio >= 6) emergencyScore = 1;
-  else if (emergencyFundRatio >= 3) emergencyScore = 0.8;
-  else if (emergencyFundRatio >= 1) emergencyScore = 0.5;
-  else if (emergencyFundRatio > 0) emergencyScore = 0.2;
-
-  const goalsScore = (goals && goals.length > 0) ? 1 : 0.2;
-  const finalScore = (surplusScore * 0.4 + emergencyScore * 0.3 + goalsScore * 0.3) * 1000;
-  
-  return Math.max(0, Math.round(finalScore));
-};
-
-export const calculateNet13thSalary = (grossSalary: number, dependents = 0, monthsWorked = 12): number => {
-  if (!grossSalary || grossSalary <= 0) return 0;
-  
-  const proportionalGross13th = (grossSalary / 12) * monthsWorked;
-  
-  // INSS calculation
-  const inssBrackets = [
-    { limit: 1556.94, rate: 0.075, fixed: 0 },
-    { limit: 2826.65, rate: 0.09, fixed: 18.18 },
-    { limit: 4250.00, rate: 0.12, fixed: 86.94 },
-    { limit: 7850.45, rate: 0.14, fixed: 171.44 }
-  ];
-  
-  let inssDeduction = 0;
-  if (proportionalGross13th <= inssBrackets[0].limit) {
-    inssDeduction = proportionalGross13th * inssBrackets[0].rate;
-  } else if (proportionalGross13th <= inssBrackets[1].limit) {
-    inssDeduction = (proportionalGross13th * inssBrackets[1].rate) - inssBrackets[1].fixed;
-  } else if (proportionalGross13th <= inssBrackets[2].limit) {
-    inssDeduction = (proportionalGross13th * inssBrackets[2].rate) - inssBrackets[2].fixed;
-  } else {
-    const inssCeilingDeduction = (inssBrackets[3].limit * inssBrackets[3].rate) - inssBrackets[3].fixed;
-    inssDeduction = inssCeilingDeduction;
+  if (monthlyExpenses > 0) {
+    const monthsCovered = totalBalance / monthlyExpenses;
+    score += monthsCovered * 50; // cada mês de reserva aumenta o score
   }
 
-  // IRRF calculation
-  const dependentDeductionValue = 189.59;
-  const irrfBase = proportionalGross13th - inssDeduction - (dependents * dependentDeductionValue);
+  // Limita entre 0 e 1000
+  return Math.min(1000, Math.max(0, Math.round(score)));
+};
+
+
+export const calculateINSS = (grossSalary: number): number => {
+  let inss = 0;
   
-  const irrfBrackets = [
-    { limit: 2112.00, rate: 0, fixed: 0 },
-    { limit: 2826.65, rate: 0.075, fixed: 158.40 },
-    { limit: 3751.05, rate: 0.15, fixed: 370.40 },
-    { limit: 4664.68, rate: 0.225, fixed: 662.77 },
-    { limit: Infinity, rate: 0.275, fixed: 896.00 }
-  ];
-  
-  let irrfDeduction = 0;
-  for (const bracket of irrfBrackets) {
-    if (irrfBase <= bracket.limit) {
-      irrfDeduction = (irrfBase * bracket.rate) - bracket.fixed;
-      break;
+  for (const rate of INSS_RATES) {
+    if (grossSalary > rate.min) {
+      const taxableAmount = Math.min(grossSalary, rate.max) - rate.min;
+      inss += taxableAmount * rate.rate;
     }
   }
-  irrfDeduction = Math.max(0, irrfDeduction);
   
-  return proportionalGross13th - inssDeduction - irrfDeduction;
+  return Math.round(inss * 100) / 100;
 };
 
-export const getFinancialHealthInsights = (data: {
-  user?: User;
-  accounts?: Account[];
-  transactions?: Transaction[];
-  budgets?: Budget[];
-  schedules?: Schedule[];
-  goals?: Goal[];
-}): FinancialInsight[] => {
-  const { user, accounts = [], transactions = [], budgets = [], schedules = [], goals = [] } = data;
-  const insights: FinancialInsight[] = [];
+export const calculateIRRF = (grossSalary: number, dependents: number = 0): number => {
+  const inss = calculateINSS(grossSalary);
+  const taxableIncome = grossSalary - inss - (dependents * DEPENDENT_DEDUCTION);
   
-  const today = new Date();
-  const currentMonthISO = today.toISOString().slice(0, 7);
-  const dayOfMonth = today.getDate();
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const monthProgress = dayOfMonth / daysInMonth;
+  if (taxableIncome <= 0) return 0;
+  
+  for (const rate of IRRF_RATES) {
+    if (taxableIncome >= rate.min && taxableIncome <= rate.max) {
+      const irrf = (taxableIncome * rate.rate) - rate.deduction;
+      return Math.max(0, Math.round(irrf * 100) / 100);
+    }
+  }
+  
+  return 0;
+};
 
-  const monthlyExpenses = transactions.filter(t => t.date.startsWith(currentMonthISO) && t.type === 'expense');
-  const monthlyBudgets = budgets.filter(b => b.month === currentMonthISO);
-  const totalMonthlyFixedExpenses = schedules.reduce((sum, s) => sum + s.amount, 0);
-  const currentTotalBalance = calculateCurrentTotalBalance(accounts);
+export const calculateNetSalary = (grossSalary: number, dependents: number = 0): number => {
+  const inss = calculateINSS(grossSalary);
+  const irrf = calculateIRRF(grossSalary, dependents);
+  return grossSalary - inss - irrf;
+};
 
-  if (monthlyBudgets.length === 0) {
-    insights.push({
-      type: 'suggestion',
-      title: 'Orçamentos não Definidos',
-      message: 'Definir orçamentos mensais é o primeiro passo para controlar os seus gastos. Que tal criar alguns agora na tela de Orçamentos?',
-      priority: 10
-    });
-  } else {
-    for (const budget of monthlyBudgets) {
-      const spentInCategory = monthlyExpenses
-        .filter(t => t.category === budget.category)
-        .reduce((sum, t) => sum + t.amount, 0);
-      
-      if (budget.amount > 0) {
-        const spendingProgress = spentInCategory / budget.amount;
-        const categoryLabel = EXPENSE_CATEGORIES.find(c => c.value === budget.category)?.label || 'uma categoria';
-        
-        if (spendingProgress >= 1) {
-          insights.push({
-            type: 'warning',
-            title: 'Orçamento Excedido',
-            message: `Atenção! Você já ultrapassou o seu orçamento para ${categoryLabel} este mês. É importante reavaliar.`,
-            priority: 9
-          });
-        } else if (spendingProgress > monthProgress + 0.20) {
-          insights.push({
-            type: 'warning',
-            title: 'Gasto Acelerado',
-            message: `Cuidado, os seus gastos com ${categoryLabel} estão a avançar mais rápido do que o mês. Tente reduzir o ritmo.`,
-            priority: 8
-          });
-        }
+export const calculateNet13thSalary = (grossSalary: number, dependents: number = 0): number => {
+  // 13º salário tem desconto apenas do INSS na primeira parcela
+  // e INSS + IRRF na segunda parcela
+  const inss = calculateINSS(grossSalary);
+  const irrf = calculateIRRF(grossSalary, dependents);
+  return grossSalary - inss - irrf;
+};
+
+export const calculateVacation = (
+  grossSalary: number, 
+  vacationDays: number = 30, 
+  dependents: number = 0,
+  sellThird: boolean = false
+): {
+  grossAmount: number;
+  inss: number;
+  irrf: number;
+  netAmount: number;
+  thirdBonus: number;
+} => {
+  // Valor proporcional das férias
+  const proportionalSalary = (grossSalary * vacationDays) / 30;
+  
+  // 1/3 constitucional
+  const thirdBonus = proportionalSalary / 3;
+  
+  // Abono pecuniário (venda de 1/3 das férias)
+  const saleAmount = sellThird ? proportionalSalary / 3 : 0;
+  const saleThirdBonus = sellThird ? saleAmount / 3 : 0;
+  
+  const totalGross = proportionalSalary + thirdBonus + saleAmount + saleThirdBonus;
+  
+  const inss = calculateINSS(totalGross);
+  const taxableIncome = totalGross - inss - (dependents * DEPENDENT_DEDUCTION);
+  
+  let irrf = 0;
+  if (taxableIncome > 0) {
+    for (const rate of IRRF_RATES) {
+      if (taxableIncome >= rate.min && taxableIncome <= rate.max) {
+        irrf = Math.max(0, (taxableIncome * rate.rate) - rate.deduction);
+        break;
       }
     }
   }
+  
+  return {
+    grossAmount: Math.round(totalGross * 100) / 100,
+    inss: Math.round(inss * 100) / 100,
+    irrf: Math.round(irrf * 100) / 100,
+    netAmount: Math.round((totalGross - inss - irrf) * 100) / 100,
+    thirdBonus: Math.round(thirdBonus * 100) / 100
+  };
+};
 
-  const debtToIncomeRatio = user && user.salary > 0 ? totalMonthlyFixedExpenses / user.salary : 0;
-  if (debtToIncomeRatio > 0.5) {
+export const calculateCurrentTotalBalance = (accounts: Account[]): number => {
+  return accounts.reduce((total, account) => total + account.balance, 0);
+};
+
+export const calculateMonthlyIncome = (
+  userSalary: number, 
+  benefits: Benefit[], 
+  schedules: Schedule[]
+): number => {
+  const netSalary = calculateNetSalary(userSalary);
+  const benefitsInCash = benefits
+    .filter(benefit => benefit.inCash)
+    .reduce((total, benefit) => total + benefit.amount, 0);
+  const incomeSchedules = schedules
+    .filter(schedule => schedule.type === 'income')
+    .reduce((total, schedule) => total + schedule.amount, 0);
+  
+  return netSalary + benefitsInCash + incomeSchedules;
+};
+
+export const calculateMonthlyExpenses = (
+  schedules: Schedule[], 
+  installments: Installment[]
+): number => {
+  const expenseSchedules = schedules
+    .filter(schedule => schedule.type === 'expense')
+    .reduce((total, schedule) => total + schedule.amount, 0);
+  
+  const currentDate = new Date();
+  const activeInstallments = installments
+    .filter(installment => {
+      const startDate = new Date(installment.startDate + '-01');
+      const monthsDiff = (currentDate.getFullYear() - startDate.getFullYear()) * 12 
+        + (currentDate.getMonth() - startDate.getMonth());
+      return monthsDiff >= 0 && monthsDiff < installment.totalInstallments;
+    })
+    .reduce((total, installment) => total + installment.monthlyPayment, 0);
+  
+  return expenseSchedules + activeInstallments;
+};
+
+export const calculateMonthlySurplus = (
+  userSalary: number,
+  benefits: Benefit[],
+  schedules: Schedule[],
+  installments: Installment[]
+): number => {
+  const income = calculateMonthlyIncome(userSalary, benefits, schedules);
+  const expenses = calculateMonthlyExpenses(schedules, installments);
+  return income - expenses;
+};
+
+export const getFinancialHealthInsights = (appData: AppData): FinancialInsight[] => {
+  const insights: FinancialInsight[] = [];
+  
+  if (!appData.user) return insights;
+  
+  const { user, accounts, benefits, schedules, installments, budgets, goals } = appData;
+  
+  // Insight sobre reserva de emergência
+  const totalBalance = calculateCurrentTotalBalance(accounts);
+  const monthlyExpenses = calculateMonthlyExpenses(schedules, installments);
+  const emergencyMonths = monthlyExpenses > 0 ? totalBalance / monthlyExpenses : 0;
+  
+  if (emergencyMonths >= 6) {
+    insights.push({
+      type: 'positive',
+      title: 'Reserva de Emergência Excelente!',
+      message: `Parabéns! Você tem uma reserva equivalente a ${emergencyMonths.toFixed(1)} meses de gastos.`,
+      priority: 10
+    });
+  } else if (emergencyMonths >= 3) {
     insights.push({
       type: 'warning',
-      title: 'Endividamento Elevado',
-      message: 'Mais de 50% do seu salário está comprometido com despesas fixas. Isto pode limitar a sua capacidade de poupar e investir.',
+      title: 'Reserva de Emergência Boa',
+      message: `Você tem ${emergencyMonths.toFixed(1)} meses de reserva. Tente chegar aos 6 meses ideais.`,
+      priority: 8
+    });
+  } else {
+    insights.push({
+      type: 'suggestion',
+      title: 'Crie uma Reserva de Emergência',
+      message: 'Recomendamos ter de 3 a 6 meses de gastos guardados para emergências.',
+      priority: 9
+    });
+  }
+  
+  // Insight sobre fluxo de caixa
+  const monthlySurplus = calculateMonthlySurplus(user.salary, benefits, schedules, installments);
+  
+  if (monthlySurplus > 0) {
+    insights.push({
+      type: 'positive',
+      title: 'Fluxo de Caixa Positivo!',
+      message: `Você tem um superávit mensal de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthlySurplus)}.`,
+      priority: 9
+    });
+  } else if (monthlySurplus < 0) {
+    insights.push({
+      type: 'warning',
+      title: 'Atenção ao Fluxo de Caixa',
+      message: `Suas despesas superam a renda em ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(monthlySurplus))} mensais.`,
+      priority: 10
+    });
+  }
+  
+  // Insight sobre metas
+  if (goals.length > 0) {
+    const completedGoals = goals.filter(goal => goal.currentAmount >= goal.targetAmount);
+    const progressingGoals = goals.filter(goal => goal.currentAmount > 0 && goal.currentAmount < goal.targetAmount);
+    
+    if (completedGoals.length > 0) {
+      insights.push({
+        type: 'positive',
+        title: 'Metas Concluídas!',
+        message: `Parabéns! Você concluiu ${completedGoals.length} meta(s).`,
+        priority: 8
+      });
+    }
+    
+    if (progressingGoals.length > 0) {
+      insights.push({
+        type: 'suggestion',
+        title: 'Continue Focado nas suas Metas',
+        message: `Você tem ${progressingGoals.length} meta(s) em progresso. Continue investindo nelas!`,
+        priority: 7
+      });
+    }
+  } else {
+    insights.push({
+      type: 'suggestion',
+      title: 'Defina suas Metas Financeiras',
+      message: 'Criar metas específicas ajuda a manter o foco e alcançar seus objetivos.',
+      priority: 6
+    });
+  }
+  
+  // Insight sobre parcelamentos
+  const activeInstallments = installments.filter(installment => {
+    const startDate = new Date(installment.startDate + '-01');
+    const currentDate = new Date();
+    const monthsDiff = (currentDate.getFullYear() - startDate.getFullYear()) * 12 
+      + (currentDate.getMonth() - startDate.getMonth());
+    return monthsDiff >= 0 && monthsDiff < installment.totalInstallments;
+  });
+  
+  if (activeInstallments.length > 3) {
+    insights.push({
+      type: 'warning',
+      title: 'Muitos Parcelamentos Ativos',
+      message: `Você tem ${activeInstallments.length} parcelamentos ativos. Considere quitar alguns para ter mais flexibilidade financeira.`,
       priority: 7
     });
   }
-
-  const emergencyFundRatio = totalMonthlyFixedExpenses > 0 ? currentTotalBalance / totalMonthlyFixedExpenses : 10;
-  if (emergencyFundRatio < 1) {
+  
+  // Insight sobre uso de benefícios
+  const benefitsNotInCash = benefits.filter(benefit => !benefit.inCash);
+  if (benefitsNotInCash.length > 0) {
     insights.push({
       type: 'suggestion',
-      title: 'Reserva de Emergência',
-      message: 'A sua reserva de emergência parece baixa. Idealmente, deveria ter o suficiente para cobrir 1 mês de despesas fixas.',
-      priority: 6
-    });
-  } else if (emergencyFundRatio >= 3 && emergencyFundRatio < 6) {
-    insights.push({
-      type: 'positive',
-      title: 'Boa Reserva de Emergência',
-      message: `Parabéns! Você tem o equivalente a ${Math.floor(emergencyFundRatio)} meses de despesas guardado. Continue a aumentar até chegar aos 6 meses.`,
+      title: 'Aproveite seus Benefícios',
+      message: `Você tem ${benefitsNotInCash.length} benefício(s) que não entram como dinheiro. Use-os para economizar no orçamento!`,
       priority: 5
     });
   }
-
-  if (goals.length === 0) {
-    insights.push({
-      type: 'suggestion',
-      title: 'Poupe com um Objetivo',
-      message: 'Definir metas financeiras, como uma viagem ou a entrada de um imóvel, pode aumentar muito a sua motivação para poupar.',
-      priority: 4
-    });
-  } else {
-    const completedGoals = goals.filter(g => g.currentAmount >= g.targetAmount).length;
-    if (completedGoals > 0) {
-      insights.push({
-        type: 'positive',
-        title: 'Meta Atingida!',
-        message: `Parabéns por ter atingido ${completedGoals} das suas metas! Continue com o excelente trabalho.`,
-        priority: 3
-      });
-    }
-  }
-
-  if (insights.length === 0) {
-    insights.push({
-      type: 'positive',
-      title: 'Finanças em Ordem',
-      message: 'Análise concluída: as suas finanças parecem estar saudáveis e sob controlo este mês. Continue com o bom trabalho!',
-      priority: 1
-    });
-  }
-
-  return insights;
+  
+  return insights.sort((a, b) => b.priority - a.priority);
 };

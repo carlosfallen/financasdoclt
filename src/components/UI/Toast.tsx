@@ -3,7 +3,7 @@ import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 interface ToastProps {
   message: string;
-  type: 'success' | 'error' | 'info';
+  type: 'success' | 'error' | 'warning' | 'info';
   onClose: () => void;
 }
 
@@ -11,12 +11,14 @@ const Toast: React.FC<ToastProps> = ({ message, type, onClose }) => {
   const icons = {
     success: CheckCircle2,
     error: AlertCircle,
+    warning: AlertCircle,
     info: Info,
   };
 
   const colors = {
     success: 'bg-green-500',
     error: 'bg-red-500',
+    warning: 'bg-yellow-500',
     info: 'bg-blue-500',
   };
 

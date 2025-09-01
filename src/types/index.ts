@@ -1,10 +1,11 @@
+// src/types/index.ts
+
 export interface User {
   id?: string;
   name: string;
   salary: number;
   paymentType: 'fixed' | 'business';
   paymentDay: number;
-  email?: string;
 }
 
 export interface Account {
@@ -12,28 +13,34 @@ export interface Account {
   name: string;
   type: 'corrente' | 'poupanca' | 'investimento' | 'cartao_credito' | 'carteira';
   balance: number;
-  userId?: string;
 }
 
 export interface Transaction {
   id: string;
-  accountId: string;
-  type: 'income' | 'expense';
-  amount: number;
   description: string;
-  category: string;
+  amount: number;
   date: string;
-  userId?: string;
+  type: 'income' | 'expense';
+  category: string;
+  accountId: string;
 }
 
 export interface Schedule {
   id: string;
-  description: string;
+  name: string;
   amount: number;
-  dueDate: number;
   category: string;
-  payments: Array<{ month: string; transactionId: string }>;
-  userId?: string;
+  type: 'income' | 'expense';
+  startDate: string;
+  endDate?: string;
+  dueDay: number;
+  payments: SchedulePayment[];
+}
+
+export interface SchedulePayment {
+  month: string;
+  transactionId: string;
+  paidAt: string;
 }
 
 export interface Benefit {
@@ -42,15 +49,14 @@ export interface Benefit {
   amount: number;
   receiptDay: number;
   inCash: boolean;
-  userId?: string;
 }
 
 export interface Budget {
   id: string;
   category: string;
-  amount: number;
+  limit: number;
+  spent: number;
   month: string;
-  userId?: string;
 }
 
 export interface Goal {
@@ -59,26 +65,62 @@ export interface Goal {
   targetAmount: number;
   currentAmount: number;
   deadline?: string;
-  userId?: string;
 }
 
 export interface Installment {
   id: string;
   description: string;
   totalAmount: number;
-  totalInstallments: number;
   monthlyPayment: number;
+  totalInstallments: number;
   startDate: string;
   category: string;
-  payments: Array<{ installmentNumber: number; transactionId: string }>;
-  userId?: string;
+  payments: InstallmentPayment[];
+}
+
+export interface InstallmentPayment {
+  installmentNumber: number;
+  transactionId: string;
 }
 
 export interface ShoppingList {
   id: string;
   name: string;
-  items: Array<{ id: string; name: string; checked: boolean }>;
-  userId?: string;
+  items: ShoppingItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  quantity: number;
+  price?: number;
+  purchased: boolean;
+  category?: string;
+}
+
+export interface AppData {
+  user: User | null;
+  accounts: Account[];
+  transactions: Transaction[];
+  schedules: Schedule[];
+  benefits: Benefit[];
+  budgets: Budget[];
+  goals: Goal[];
+  installments: Installment[];
+  shoppingLists: ShoppingList[];
+}
+
+export interface CategoryOption {
+  value: string;
+  label: string;
+  icon: string;
+}
+
+export interface AccountTypeOption {
+  value: string;
+  label: string;
 }
 
 export interface FinancialInsight {
@@ -88,13 +130,16 @@ export interface FinancialInsight {
   priority: number;
 }
 
-export type CategoryType = {
-  value: string;
-  label: string;
-  icon: string;
-};
+export interface MonthlyProjection {
+  month: string;
+  income: number;
+  expenses: number;
+  balance: number;
+}
 
-export type AccountType = {
-  value: string;
-  label: string;
-};
+export interface ToastMessage {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  duration?: number;
+}

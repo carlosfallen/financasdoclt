@@ -4,18 +4,23 @@ import { useAppData } from '../../hooks/useLocalStorage'
 import { generateId, showToast } from '../../utils'
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../../config'
 
-export function QuickAddModal({ isOpen, onClose }) {
+interface Props {
+  isOpen: boolean
+  onClose: () => void
+}
+
+const QuickAddModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const { data, addItem, updateItem } = useAppData()
-  const [transactionType, setTransactionType] = useState('expense')
+  const [transactionType, setTransactionType] = useState<'expense' | 'income'>('expense')
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
-    accountId: data.accounts[0]?.id || '',
+    accountId: (data?.accounts && data.accounts[0]?.id) || '',
     category: EXPENSE_CATEGORIES[0]?.value || ''
   })
 
-  const accounts = data.accounts || []
+  const accounts = data?.accounts || []
 
   if (!isOpen || accounts.length === 0) {
     if (accounts.length === 0 && isOpen) {
@@ -27,7 +32,7 @@ export function QuickAddModal({ isOpen, onClose }) {
 
   const categories = transactionType === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
@@ -35,7 +40,7 @@ export function QuickAddModal({ isOpen, onClose }) {
     }))
   }
 
-  const handleTypeChange = (type) => {
+  const handleTypeChange = (type: 'expense' | 'income') => {
     setTransactionType(type)
     const newCategories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES
     setFormData(prev => ({
@@ -44,19 +49,19 @@ export function QuickAddModal({ isOpen, onClose }) {
     }))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     const account = accounts.find(acc => acc.id === formData.accountId)
     if (!account) {
       showToast('Erro: Conta inválida.', 'error')
       return
     }
 
-    const amount = parseFloat(formData.amount)
-    const newBalance = transactionType === 'income' 
-      ? account.balance + amount 
-      : account.balance - amount
+    const amount = parseFloat(String(formData.amount))
+    const newBalance = transactionType === 'income'
+      ? (account.balance || 0) + amount
+      : (account.balance || 0) - amount
 
     const newTransaction = {
       id: generateId(),
@@ -70,7 +75,7 @@ export function QuickAddModal({ isOpen, onClose }) {
 
     addItem('transactions', newTransaction)
     updateItem('accounts', formData.accountId, { balance: newBalance })
-    
+
     showToast('Lançamento salvo!', 'success')
     onClose()
   }
@@ -80,14 +85,14 @@ export function QuickAddModal({ isOpen, onClose }) {
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
         <header className="flex justify-between items-center p-4 border-b dark:border-slate-700">
           <h2 className="text-xl font-bold">Novo Lançamento</h2>
-          <button 
+          <button
             onClick={onClose}
             className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
           >
             <X className="w-6 h-6" />
           </button>
         </header>
-        
+
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -197,3 +202,5 @@ export function QuickAddModal({ isOpen, onClose }) {
     </div>
   )
 }
+
+export default QuickAddModal
