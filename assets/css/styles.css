@@ -1,0 +1,29 @@
+/* assets/css/styles.css */
+
+/*
+  Este arquivo é para estilos customizados que são difíceis 
+  ou verbosos de se fazer diretamente com Tailwind.
+  A maior parte da estilização deve permanecer no HTML via classes do Tailwind.
+*/
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+}
+
+/* Classe para o link ativo na barra de navegação inferior.
+  Será aplicada dinamicamente pelo JavaScript (main.js) 
+  para dar feedback visual ao usuário sobre a página atual.
+*/
+.nav-link-active {
+    color: #4f46e5; /* Cor indigo-600 do Tailwind */
+}
+
+/* Animação de entrada para as views */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.view-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
