@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLT Financeiro</title>
+    <meta name="description" content="Seu assistente financeiro pessoal para o regime CLT.">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e293b">
+
+    <!-- 
+      NOVA LINHA: Define o ícone para o separador do navegador.
+      Isto elimina o erro 404 para /favicon.ico.
+    -->
+    <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Lucide Icons via CDN -->
+    <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="assets/css/styles.css">
+
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+
+    <div id="app-container" class="max-w-lg mx-auto min-h-screen bg-white dark:bg-slate-800 shadow-2xl">
+        <!-- O conteúdo das views será renderizado aqui pelo router.js -->
+        <main id="app-root" class="p-4 pb-24">
+            <!-- Loading Spinner Initial -->
+            <div class="flex justify-center items-center h-screen">
+                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-500"></div>
+            </div>
+        </main>
+
+        <!-- Bottom Navigation Bar -->
+        <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 max-w-lg mx-auto h-16 bg-white dark:bg-slate-900/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700 flex justify-around items-center z-50">
+            <a href="#dashboard" class="nav-link flex flex-col items-center justify-center text-slate-500" data-route="#dashboard">
+                <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
+                <span class="text-xs font-medium">Início</span>
+            </a>
+            <a href="#transactions" class="nav-link flex flex-col items-center justify-center text-slate-500" data-route="#transactions">
+                <i data-lucide="arrow-left-right" class="w-6 h-6"></i>
+                <span class="text-xs font-medium">Extrato</span>
+            </a>
+            
+            <!-- Botão de Ação Central -->
+            <button id="quick-add-btn" class="bg-indigo-600 text-white rounded-full w-14 h-14 flex items-center justify-center -mt-8 shadow-lg shadow-indigo-500/50">
+                <i data-lucide="plus" class="w-8 h-8"></i>
+            </button>
+            
+            <a href="#budgets" class="nav-link flex flex-col items-center justify-center text-slate-500" data-route="#budgets">
+                <i data-lucide="piggy-bank" class="w-6 h-6"></i>
+                <span class="text-xs font-medium">Orçamento</span>
+            </a>
+            <a href="#more" class="nav-link flex flex-col items-center justify-center text-slate-500" data-route="#more">
+                <i data-lucide="more-horizontal" class="w-6 h-6"></i>
+                <span class="text-xs font-medium">Mais</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Ponto de entrada do JavaScript (Módulo) -->
+    <script type="module" src="js/main.js"></script>
+
+</body>
+</html>
