@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@layer base {
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .nav-link-active {
+    @apply text-indigo-600;
+  }
+  
+  .card {
+    @apply bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg shadow-sm;
+  }
+  
+  .card-title {
+    @apply font-semibold text-slate-600 dark:text-slate-300;
+  }
+  
+  .card-value {
+    @apply text-2xl font-bold;
+  }
+  
+  .input-style {
+    @apply w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent;
+  }
+  
+  .form-label {
+    @apply block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1;
+  }
+  
+  .btn-primary {
+    @apply bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-slate-200 hover:bg-slate-300 dark:bg-slate-600 dark:hover:bg-slate-500 text-slate-800 dark:text-slate-200 font-semibold py-2 px-4 rounded-lg transition-colors;
+  }
+}
